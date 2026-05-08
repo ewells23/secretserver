@@ -41,6 +41,10 @@
 #   .\Add-RabbitMqHelperPowerShellShortcut.ps1 -Uninstall
 #
 # Version:
+#   1.0.2  - 2026-05-08  - fix Find-HelperInstallPath returning a single character
+#                          when only one candidate matches (single-element pipeline
+#                          was collapsing to a string scalar; @() wrapper forces
+#                          array semantics so [0] indexes the element, not the char).
 #   1.0.1  - 2026-05-08  - welcome script auto-discovers *PSCommands.{psd1,dll}
 #                          (tolerates Delinea.RabbitMq.Helper.PSCommands.dll name);
 #                          added "Delinea Software Ltd" to install-path fallbacks.
@@ -104,18 +108,23 @@ function Find-HelperInstallPath {
         return $entry.InstallLocation.TrimEnd('\')
     }
 
+    # @(...) wrapper forces array semantics even when Where-Object yields one match -
+    # otherwise $candidates[0] would index into the single-string scalar and return 'C'.
     $candidates = @(
-        (Join-Path $env:ProgramFiles        'Delinea Software Ltd\RabbitMq Helper'),
-        (Join-Path $env:ProgramFiles        'Thycotic Software Ltd\RabbitMq Helper'),
-        (Join-Path $env:ProgramFiles        'Delinea\RabbitMq Helper'),
-        (Join-Path ${env:ProgramFiles(x86)} 'Delinea Software Ltd\RabbitMq Helper'),
-        (Join-Path ${env:ProgramFiles(x86)} 'Thycotic Software Ltd\RabbitMq Helper'),
-        (Join-Path ${env:ProgramFiles(x86)} 'Delinea\RabbitMq Helper')
-    ) | Where-Object { $_ -and (Test-Path $_) }
+        @(
+            (Join-Path $env:ProgramFiles        'Delinea Software Ltd\RabbitMq Helper'),
+            (Join-Path $env:ProgramFiles        'Thycotic Software Ltd\RabbitMq Helper'),
+            (Join-Path $env:ProgramFiles        'Delinea\RabbitMq Helper'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Delinea Software Ltd\RabbitMq Helper'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Thycotic Software Ltd\RabbitMq Helper'),
+            (Join-Path ${env:ProgramFiles(x86)} 'Delinea\RabbitMq Helper')
+        ) | Where-Object { $_ -and (Test-Path $_) }
+    )
 
-    if ($candidates) {
-        Write-Verbose "Found install via fallback path: $($candidates[0])"
-        return $candidates[0]
+    if ($candidates.Count -gt 0) {
+        $found = $candidates[0]
+        Write-Verbose "Found install via fallback path: $found"
+        return $found
     }
 
     return $null
